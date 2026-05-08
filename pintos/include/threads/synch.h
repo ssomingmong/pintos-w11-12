@@ -39,7 +39,7 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
-// condvar에서 semaphore 안의 thread의 priority를 비교하기 위한 함수
+
 bool compare_condvar_priority(struct list_elem *, struct list_elem *); 
 
 /* Optimization barrier.

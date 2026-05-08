@@ -33,11 +33,11 @@
 #include "threads/thread.h"
 
 
-/* thread waiters를 높은 priority 순으로 유지하기 위한 비교 함수. */
+
 static bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 static bool cmp_sema_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
-/* 두 thread waiter를 priority로 비교한다. */
+
 static bool
 cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
 	struct thread *ta = list_entry(a, struct thread, elem);
@@ -80,7 +80,7 @@ sema_down (struct semaphore *sema) {
 
 	old_level = intr_disable ();
 	while (sema->value == 0) {
-		/* semaphore waiters도 높은 priority가 앞에 오게 정렬한다. */
+
 		list_insert_ordered (&sema->waiters, &thread_current()->elem, cmp_priority, NULL);
 		thread_block ();
 	}
@@ -135,19 +135,19 @@ sema_up (struct semaphore *sema) {
 	old_level = intr_disable ();
 	if (!list_empty (&sema->waiters))
 	{
-		// waiter들 중 가장 높은 우선순위가 스레드가 먼저 깨어나도록 정렬
+
 		list_sort (&sema->waiters, sema_priority_more, NULL);
 
-		// 가장 높은 우선순위 waiter를 꺼내 READY 상태로 바꾼다.
+
 		woken = list_entry (list_pop_front (&sema->waiters), struct thread, elem);
 		thread_unblock (woken);
 
-		/* 세마포어를 기다리던 스레드를 깨운 뒤,
-		그 스레드가 현재보다 우선순위가 높으면 CPU를 넘겨야 함 */
+
+
 		if (woken->priority > thread_current ()->priority) 
 		{
-			/* 인터럽트 컨텍스트에서는 즉시 양보하지 않고,
-			인터럽트가 끝난 뒤 스케줄링이 일어나도록 예약 */
+
+
 			if (intr_context ()) {
 				intr_yield_on_return ();
 			}
@@ -159,7 +159,7 @@ sema_up (struct semaphore *sema) {
 	sema->value++;
 	intr_set_level (old_level);
 
-	// 일반 실행 흐름에서는 여기서 직접 CPU를 양보
+
 	if (should_yield) {
 		thread_yield ();
 	}
@@ -231,41 +231,41 @@ lock_init (struct lock *lock) {
    interrupt handler.  This function may be called with
    interrupts disabled, but interrupts will be turned back on if
    we need to sleep. */
-/* lock을 잡기 전에 holder가 이미 존재하면,
-현재 스레드는 이 lock 때문에 기다리게 된다.
-따라서 현재 스레드를 donor로 등록하고,
-holder 쪽으로 priority donation을 시작. */
+
+
+
+
 void
 lock_acquire (struct lock *lock) {
 	
-	// lock 포인터가 진짜 있어야 한다.
+
 	ASSERT (lock != NULL);
-	// 인터럽트 핸들러 문맥에서는 호출하면 안 된다.
+
 	ASSERT (!intr_context ());
-	// 현재 스레드가 이미 이 lock을 들고 있으면 안 된다. 
+
 	ASSERT (!lock_held_by_current_thread (lock));
 
 	if (lock->holder != NULL)
 	{
 		struct thread *curr = thread_current ();
 
-		// nested donation 추적을 위해 현재 기다리는 lock 기록
+
 		curr->wait_on_lock = lock;
 
-		// 현재 스레드를 holder의 donor 목록에 추가
+
 		list_push_back (&lock->holder->donations, &curr->donation_elem);
 
-		// 높은 우선순위를 holder에게 전파
+
 		donate_priority ();
 	}
 
-	// donation을 반영한 뒤 실제로 lock이 풀릴 때까지 기다린다.
+
 	sema_down (&lock->semaphore);
 
-	// 이제 lock을 얻었으므로 더 이상 기다리는 상태가 아님
+
 	thread_current ()->wait_on_lock = NULL;
 
-	// 현재 스레드가 이 lock의 새 holder가 된다.
+
 	lock->holder = thread_current ();
 }
 
@@ -298,8 +298,8 @@ lock_try_acquire (struct lock *lock) {
    An interrupt handler cannot acquire a lock, so it does not
    make sense to try to release a lock within an interrupt
    handler. */
-/* lock을 놓을 때는 이 lock 때문에 들어온 donation만 제거하고,
-남아 있는 donor들을 기준으로 현재 우선순위를 다시 계산해야 함. */
+
+
 void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
@@ -335,10 +335,10 @@ lock_release (struct lock *lock) {
 		}
 	}
 
-	// 이제 이 lock의 holder는 없음
+
 	lock->holder = NULL;
 
-	// 기다리던 다음 스레드가 lock을 얻을 수 있도록 깨움
+
 	sema_up (&lock->semaphore);
 
 	if(!list_empty(&thread_current()->donations))
@@ -372,10 +372,10 @@ lock_held_by_current_thread (const struct lock *lock) {
 struct semaphore_elem {
 	struct list_elem elem;              /* List element. */
 	struct semaphore semaphore;         /* This semaphore. */
-	int priority;                       /* cond waiter를 정렬할 때 쓸 priority */
+	int priority;
 };
 
-/* cond->waiters 안의 semaphore_elem을 priority로 비교한다. */
+
 static bool
 cmp_sema_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
 	struct semaphore_elem *sa = list_entry(a, struct semaphore_elem, elem);
@@ -384,8 +384,8 @@ cmp_sema_priority(const struct list_elem *a, const struct list_elem *b, void *au
 	return sa->priority > sb->priority;
 }
 
-/* condition waiters는 thread가 아니라 semaphore_elem을 저장하므로,
-각 waiter 안에서 결국 어떤 우선순위 thread가 깨어나는지를 기준으로 비교 */
+
+
 static bool
 cond_priority_more (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 {
@@ -437,9 +437,9 @@ cond_wait (struct condition *cond, struct lock *lock) {
 	ASSERT (lock_held_by_current_thread (lock));
 
 	sema_init (&waiter.semaphore, 0);
-	/* cond waiter도 생성 시점의 priority를 저장해 정렬 기준으로 쓴다. */
+
 	waiter.priority = thread_current()->priority;
-	/* cond waiters를 높은 priority 순으로 유지한다. */
+
 	list_insert_ordered (&cond->waiters, &waiter.elem, cmp_sema_priority, NULL);
 	lock_release (lock);
 	sema_down (&waiter.semaphore);
@@ -479,10 +479,10 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED) {
 
 	if (!list_empty (&cond->waiters))
 	{
-		// condition waiters 중 우선순위가 가장 높은 waiter를 먼저 깨우도록 정렬
+
 		list_sort (&cond->waiters, cond_priority_more, NULL);
 
-		// 선택된 waiter의 세마포어를 개워서, 그 waiter와 연결된 스레가 READY 상태가 되게 한다.
+
 		sema_up (&list_entry (list_pop_front (&cond->waiters),
 					struct semaphore_elem, elem)->semaphore);
 	}

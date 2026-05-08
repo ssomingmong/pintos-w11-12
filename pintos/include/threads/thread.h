@@ -93,27 +93,27 @@ struct thread {
 	tid_t tid;                          /* Thread identifier. */
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
-	int priority;                       // 현재 적용 중인 우선순위
-	int base_priority;					// 원래 우선순위
+	int priority;
+	int base_priority;
 	
-	int exit_status;					// 유저 프로세스가 exit(status)로 넘긴 종료 코드 저장
+	int exit_status;
 
-	// 스레드를 깨워야 하는 tick 시점
+
 	int64_t wakeup_tick;
 
-	struct lock *wait_on_lock; /* 지금 이 스레드가 락을 기다리는 중인지 확인하는 */
-	struct list donations; /* donation한 thread에 대한 list들 */
+	struct lock *wait_on_lock;
+	struct list donations;
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
-	struct list_elem donation_elem;		// donations 리스트에 들어갈 때 사용하는 원소
+	struct list_elem donation_elem;
 	
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
 
-	/* 프로세스가 열어 둔 파일들을 fd 번호로 찾기 위한 테이블.
-	   fd 0은 stdin, fd 1은 stdout으로 예약하고 일반 파일은 fd 2부터 쓴다. */
+
+
 	struct file *fd_table[MAX_FD];
 	int next_fd;
 #endif

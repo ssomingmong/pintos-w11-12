@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-# 사용법 : 
 # make check > make-check-output.txt
 # python3 generate_test_config.py < make-check-output.txt > .test_config
 
@@ -10,7 +9,6 @@ import sys
 from collections import defaultdict
 from datetime import date
 
-# 제거할 공통 플래그
 COMMON_FLAGS = {"-v", "-k"}
 COMMON_OPTS_WITH_VAL = {"-T", "-m"}
 
@@ -34,7 +32,6 @@ def clean_pre_args(arg_str):
     return " ".join(out)
 
 def parse_line(line):
-    # 일반 테스트 (non-thread) 파싱
     if ' <' in line:
         line = line.split(' <', 1)[0]
     line = line.strip()
@@ -63,7 +60,6 @@ def main():
     lines = [L.rstrip("\n") for L in sys.stdin]
     groups = defaultdict(list)
 
-    # 1) non-thread 테스트 우선 파싱
     for line in lines:
         parsed = parse_line(line)
         if parsed:
@@ -71,7 +67,6 @@ def main():
             if not test_path.startswith('tests/threads'):
                 groups[test_path].append((name, pre, runner, prog))
 
-    # 2) summary 섹션에서 thread 테스트 목록 추출
     summary = []
     in_summary = False
     for line in reversed(lines):
@@ -90,7 +85,6 @@ def main():
             break
     summary.reverse()
 
-    # 3) 각 thread 테스트에 대해 pintos 실행 라인 찾아 파싱
     for full_path, name in summary:
         cmd_line = next((L for L in lines
                          if L.startswith('pintos')
@@ -113,7 +107,6 @@ def main():
         clean_pre = clean_pre_args(pre)
         groups[test_path].append((name, clean_pre, runner, prog))
 
-    # Header: 파일 포맷 설명
     print("# .test_config format:")
     print("# test_name | pre_args | post_args | prog_args | test_path")
     print("#")
@@ -141,7 +134,6 @@ def main():
             print(f"{name} | {pre} | {runner} | {prog_field} | {test_path}")
         print()
 
-    # Footer: 총 개수 및 생성 날짜
     print(f"# Total testcases: {total}")
     print(f"# Generated on {date.today().isoformat()}")
 

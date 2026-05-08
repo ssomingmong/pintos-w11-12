@@ -225,14 +225,14 @@ process_exit (void) {
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
 
-	// 유저 프로세스인 경우에만 종료 메시지를 출력
+
 	if (curr->pml4 != NULL)
 	{
 		printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
 	}
 
-	/* 프로세스가 종료되면 fd 테이블에 남아 있는 파일을 모두 닫는다.
-	   close()를 직접 호출하지 않고 종료되는 프로그램도 파일 자원을 반납해야 한다. */
+
+
 	for (int fd = 2; fd < MAX_FD; fd++) {
 		if (curr->fd_table[fd] != NULL) {
 			lock_acquire (&filesys_lock);
@@ -355,36 +355,36 @@ load (const char *file_name, struct intr_frame *if_) {
 	struct file *file = NULL;
 	off_t file_ofs;
 	bool success = false;
-	int i;						// ELF 로딩 반복문
+	int i;
 
-	char *cmdline_copy;          // 명령줄 복사본
-	char *token;                 // strtok_r()로 잘라낸 인자 하나
-	char *save_ptr;              // strtok_r() 보조 포인터
+	char *cmdline_copy;
+	char *token;
+	char *save_ptr;
 
-	char *argv_kern[MAX_ARGS];   // 커널 영역에서 임시로 들고 있는 인자 문자열 주소들
-	char *argv_user[MAX_ARGS];   // 유저 스택에 복사된 각 인자 문자열의 주소들
-	char **argv_addr;            // 유저 스택에 만들어진 argv 배열의 시작 주소
+	char *argv_kern[MAX_ARGS];
+	char *argv_user[MAX_ARGS];
+	char **argv_addr;
 	uint8_t *rsp;
 
-	int argc = 0;                // 인자 개수
+	int argc = 0;
 
 	cmdline_copy = (char *) file_name;
 
-	/* file_name 전체 문자열을 복사본에 그대로 복사한다. */
-	strlcpy(cmdline_copy, file_name, PGSIZE);                // 반복문 인덱스
+
+	strlcpy(cmdline_copy, file_name, PGSIZE);
 	token = strtok_r(cmdline_copy, " ", &save_ptr);
 	while(token != NULL) {
-		/* 현재 토큰을 argv_kern[]에 저장한다. */
+
 		argv_kern[argc] = token;
 
-		/* 인자를 하나 찾았으므로 argc를 1 증가시킨다. */
+
 		argc++;
 
-		/* 인자가 너무 많아지면 더 이상 진행하지 않는다. */
+
 		if(argc >= MAX_ARGS)
 			goto done;
 
-		/* 같은 문자열에서 다음 토큰을 계속 꺼낸다. */
+
 		token = strtok_r(NULL, " ", &save_ptr);
 	}
 	/* Allocate and activate page directory. */
@@ -393,25 +393,25 @@ load (const char *file_name, struct intr_frame *if_) {
 		goto done;
 	process_activate (thread_current ());
 
-	/* 일단 command line을 파싱하여 저장한 뒤 filesys_open()에 전달해야 한다. */
+
 	cmdline_copy = palloc_get_page(0);
 	if (cmdline_copy == NULL)
 		goto done;
-	// str + length/limited + copy 길이 제한이 있는 문자열 복사
+
 	strlcpy(cmdline_copy, file_name, PGSIZE);
 
-	/* cmdline_copy를 공백을 기준으로 나눈다. 
-	* 이때 증감식의 조건이 strtok_r(NULL, " ", &save_ptr) 인 이유는
-	* 이렇게 주게 되면, 이전에 자르던 문자열을 계속 자르라는 의미가 되기 때문이다.
-	* save_ptr가 어디까지 잘랐는지 기억하는 보조 포인터이기 때문에 다음 호출에서도 이어서 자를 수 있다. 
-	* 자르고 난 뒤 그 값을 argc_kern에 저장한다. */
+
+
+
+
+
 
 	if (argc == 0) {
 		goto done;
 	}
 
 	/* Open executable file. */
-	// 실제로 파일 시스템에서 열어야 하는 실행 파일 이름은 첫 번째 토큰
+
 	file = filesys_open (argv_kern[0]);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", argv_kern[0]);
@@ -491,62 +491,62 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
-	// setup_stack()이 만든 초기 유저 스택 꼭대기부터 인자를 배치
+
 	rsp = (uint8_t *) if_->rsp;
 
-	// 문자열 본문을 유저 스택에 역순으로 복사
+
 	for (i = argc - 1; i >= 0; i--)
 	{
-		// 문자열 끝의 '\0'까지 포함
+
 		size_t len = strlen (argv_kern[i]) + 1;
 
-		// 문자열 길이만큼 스택 포인터를 내린다
+
 		rsp -= len;
 
-		// 현재 위치에 문자열 본문을 복사
+
 		memcpy(rsp, argv_kern[i], len);
 
-		// 복사된 문자열의 유저 스택 주소를 저장
+
 		argv_user[i] = (char *) rsp;
 	}
 
-	// 스택 주소를 8바이트 경계에 맞추기
+
 	rsp = (uint8_t *) ((uint64_t) rsp & ~0x7);
 
-	// argv[argc]에 들어갈 NULL 포인터 공간 만들기
+
 	rsp -= sizeof (char *);
 
-	// argv 마지막 원소에 NULL 넣기
+
 	*(char **) rsp = NULL;
 
-	// 각 argv[i]가 인자 문자열을 가리키도록 포인터들을 스택에 넣기
+
 	for (i = argc - 1; i >= 0; i--) 
 	{
-		// 포인터 하나를 저장할 공간만큼 스택 포인터 내리기
+
 		rsp -= sizeof (char *);
-		// argv_user[i]에 저장해 둔 문자열 주소를 스택에 장
+
 		*(char **) rsp = argv_user[i];
 	}
 
-	/* 현재 rsp가 argv[0]이 위치한 곳이므로, 이것이 최종 argv 시작 주소가 된다. */
+
 	argv_addr = (char **) rsp;
 
-	/* 유저 프로그램이 함수 호출로 시작한 것처럼 보이게 fake return address 공간을 만든다. */
+
 	rsp -= sizeof (void *);
 
-	/* 실제로 돌아갈 주소는 없으므로 NULL을 넣는다. */
+
 	*(void **) rsp = NULL;
 
-	/* x86-64 호출 규약상 첫 번째 인자 argc는 rdi 레지스터에 넣는다. */
+
 	if_->R.rdi = argc;
 
-	/* x86-64 호출 규약상 두 번째 인자 argv는 rsi 레지스터에 넣는다. */
+
 	if_->R.rsi = (uint64_t) argv_addr;
 
-	/* 완성된 유저 스택 포인터를 intr_frame의 rsp에 저장한다. */
+
 	if_->rsp = (uint64_t) rsp;	
 
-	// 여기까지 왔다면 성공했다는 거니까 true 처리.
+
 	success = true;
 
 
