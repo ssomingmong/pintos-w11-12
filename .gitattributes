@@ -1,0 +1,5 @@
+*.sh text eol=lf
+activate text eol=lf
+pintos/utils/pintos text eol=lf
+pintos/utils/pintos-mkdisk text eol=lf
+pintos/utils/backtrace text eol=lf
