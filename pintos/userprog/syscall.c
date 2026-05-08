@@ -173,7 +173,27 @@ syscall_handler (struct intr_frame *f) {
 			struct file *file;
 
 
-			check_buffer (buffer, size);
+			if (size > 0) {
+				int is_valid = 1;
+
+				if (buffer == NULL) {
+					is_valid = 0;
+				} else {
+					char *start_page = pg_round_down((char *) buffer);
+					char *end_page = pg_round_down((char *) buffer + size - 1);
+
+					for (char *page = start_page; page <= end_page; page += PGSIZE) {
+						if (!is_user_vaddr(page) ||
+								pml4_get_page(thread_current()->pml4, page) == NULL) {
+							is_valid = 0;
+							break;
+						}
+					}
+				}
+
+				if (!is_valid)
+					exit_with_status(-1);
+			}
 
 			if(fd == 1) {
 
