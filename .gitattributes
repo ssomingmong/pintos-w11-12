@@ -1,5 +1,42 @@
-*.sh text eol=lf
-activate text eol=lf
-pintos/utils/pintos text eol=lf
-pintos/utils/pintos-mkdisk text eol=lf
-pintos/utils/backtrace text eol=lf
+# 줄 끝 정규화 — PR diff에 CRLF/LF 차이가 노이즈로 끼는 것을 방지.
+# git이 작업 트리에서 OS별 줄 끝을 쓰더라도 저장소에는 LF로 저장된다.
+# Pintos는 LF 기반이라 LF로 고정.
+
+# 기본: 텍스트 자동 감지, 저장소에는 LF
+* text=auto eol=lf
+
+# 명시적 텍스트 (auto 감지 실패 대비)
+*.c          text eol=lf
+*.h          text eol=lf
+*.S          text eol=lf
+*.lds        text eol=lf
+*.lds.s      text eol=lf
+
+*.py         text eol=lf
+*.pl         text eol=lf
+*.pm         text eol=lf
+*.sh         text eol=lf
+*.ck         text eol=lf
+
+Makefile     text eol=lf
+Make.*       text eol=lf
+*.mk         text eol=lf
+
+*.md         text eol=lf
+*.txt        text eol=lf
+*.json       text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+
+# 바이너리 — diff/merge 비활성, 줄 끝 변환 금지
+*.bin        binary
+*.dsk        binary
+*.o          binary
+*.a          binary
+*.gz         binary
+*.tar        binary
+*.zip        binary
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.pdf        binary
