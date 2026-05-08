@@ -361,12 +361,17 @@ load (const char *file_name, struct intr_frame *if_) {
 	char *token;
 	char *save_ptr;
 
-	char *argv_kern[MAX_ARGS];
-	char *argv_user[MAX_ARGS];
+	char **argv_kern = NULL;
+	char **argv_user = NULL;
 	char **argv_addr;
 	uint8_t *rsp;
 
 	int argc = 0;
+
+	argv_kern = palloc_get_page (0);
+	argv_user = palloc_get_page (0);
+	if (argv_kern == NULL || argv_user == NULL)
+		goto done;
 
 	cmdline_copy = (char *) file_name;
 
@@ -392,19 +397,6 @@ load (const char *file_name, struct intr_frame *if_) {
 	if (t->pml4 == NULL)
 		goto done;
 	process_activate (thread_current ());
-
-
-	cmdline_copy = palloc_get_page(0);
-	if (cmdline_copy == NULL)
-		goto done;
-
-	strlcpy(cmdline_copy, file_name, PGSIZE);
-
-
-
-
-
-
 
 	if (argc == 0) {
 		goto done;
@@ -552,9 +544,10 @@ load (const char *file_name, struct intr_frame *if_) {
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	if (cmdline_copy != NULL) {
-		palloc_free_page (cmdline_copy);
-	}
+	if (argv_kern != NULL)
+		palloc_free_page (argv_kern);
+	if (argv_user != NULL)
+		palloc_free_page (argv_user);
 	if (file != NULL) {
 		file_close (file);
 	}
