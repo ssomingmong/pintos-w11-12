@@ -112,20 +112,7 @@ void vm_dealloc_page (struct page *page);
 bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
 
-// 생성
 static uint64_t page_hash(const struct hash_elem *e, void *aux UNUSED);
 static bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED);
-
-static uint64_t page_hash(const struct hash_elem *e, void *aux UNUSED) {
-	const struct page *p = hash_entry(e, struct page, hash_elem);
-	return hash_bytes(&p->va, sizeof p->va);
-}
-
-static bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED) {
-	const struct page *pa = hash_entry(a, struct page, hash_elem);
-	const struct page *pb = hash_entry(b, struct page, hash_elem);
-
-	return pa->va < pb->va;
-}
 
 #endif  /* VM_VM_H */
