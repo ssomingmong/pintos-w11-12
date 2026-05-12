@@ -3,6 +3,7 @@
 #include "threads/malloc.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
+#include "threads/vaddr.h"
 
 static uint64_t 
 page_hash(const struct hash_elem *e, void *aux UNUSED){
@@ -50,6 +51,17 @@ static struct frame *vm_get_victim (void);
 static bool vm_do_claim_page (struct page *page);
 static struct frame *vm_evict_frame (void);
 
+static uint64_t page_hash(const struct hash_elem *e, void *aux UNUSED) {
+	struct page *p = hash_entry(e, struct page, hash_elem);
+	return hash_bytes(&p->va, sizeof(p->va));
+}
+
+static bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED) {
+	struct page *pa = hash_entry(a, struct page, hash_elem);
+	struct page *pb = hash_entry(b, struct page, hash_elem);
+
+	return pa->va < pb->va;
+}
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
@@ -75,7 +87,7 @@ err:
 
 /* Find VA from spt and return page. On error, return NULL. */
 struct page *
-spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
+spt_find_page (struct supplemental_page_table *spt, void *va ) {
 	struct page *page = NULL;
 	/* TODO: Fill this function. */
 
@@ -187,8 +199,7 @@ vm_do_claim_page (struct page *page) {
 /* Initialize new supplemental page table */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt) {
-	hash_init(&spt->pages,page_hash,page_less,NULL);
-	ASSERT(success);
+	hash_init(&spt->pages, page_hash, page_less, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
