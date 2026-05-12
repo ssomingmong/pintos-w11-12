@@ -5,6 +5,7 @@ pintos2/
 select_test.sh
 .test_config
 .test_status
+pintos/.vscode/
 
 # Pintos 빌드 중간 파일 및 산출물
 *.o
