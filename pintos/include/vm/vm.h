@@ -1,6 +1,7 @@
 #ifndef VM_VM_H
 #define VM_VM_H
 #include <stdbool.h>
+#include <hash.h>
 #include "threads/palloc.h"
 
 enum vm_type {
@@ -28,7 +29,7 @@ enum vm_type {
 #include "vm/anon.h"
 #include "vm/file.h"
 #ifdef EFILESYS
-#include "filesys/page_cache.h"
+#include "filesys/page_cach	e.h"
 #endif
 
 struct page_operations;
@@ -87,6 +88,7 @@ struct page_operations {
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
 struct supplemental_page_table {
+	struct hash pages;
 };
 
 #include "threads/thread.h"
