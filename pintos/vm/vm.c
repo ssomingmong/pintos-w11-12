@@ -4,6 +4,19 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 
+static uint64_t 
+page_hash(const struct hash_elem *e, void *aux UNUSED){
+	const struct page * t = hash_entry(e, struct page, hash_elem);
+	return hash_bytes(&t->va, sizeof(t->va));
+
+}
+static bool 
+page_less(const struct hash_elem *a, const struct hash_elem* b, void* aux UNUSED){
+	const struct page * page_a = hash_entry(a, struct page, hash_elem);
+	const struct page * page_b = hash_entry(b, struct page, hash_elem);
+	return (uint64_t)page_a->va <(uint64_t)page_b->va;
+}
+
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void
@@ -188,8 +201,8 @@ page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED
 /* Initialize new supplemental page table */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt) {
-	bool success = hash_init(&spt->pages, page_hash, page_less, NULL);
-	ASSERT(success);
+	hash_init(&spt->pages,page_hash,page_less,NULL);
+  ASSERT(success);
 }
 
 /* Copy supplemental page table from src to dst */
