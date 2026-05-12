@@ -374,22 +374,14 @@ load (const char *file_name, struct intr_frame *if_) {
 		goto done;
 
 	cmdline_copy = (char *) file_name;
-
-
 	strlcpy(cmdline_copy, file_name, PGSIZE);
 	token = strtok_r(cmdline_copy, " ", &save_ptr);
 	while(token != NULL) {
 
 		argv_kern[argc] = token;
-
-
 		argc++;
-
-
 		if(argc >= MAX_ARGS)
 			goto done;
-
-
 		token = strtok_r(NULL, " ", &save_ptr);
 	}
 	/* Allocate and activate page directory. */
@@ -485,62 +477,32 @@ load (const char *file_name, struct intr_frame *if_) {
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
 
 	rsp = (uint8_t *) if_->rsp;
-
-
 	for (i = argc - 1; i >= 0; i--)
 	{
-
 		size_t len = strlen (argv_kern[i]) + 1;
-
-
 		rsp -= len;
-
-
 		memcpy(rsp, argv_kern[i], len);
-
-
 		argv_user[i] = (char *) rsp;
 	}
 
-
 	rsp = (uint8_t *) ((uint64_t) rsp & ~0x7);
-
-
 	rsp -= sizeof (char *);
-
-
 	*(char **) rsp = NULL;
-
 
 	for (i = argc - 1; i >= 0; i--) 
 	{
-
 		rsp -= sizeof (char *);
-
 		*(char **) rsp = argv_user[i];
 	}
 
-
 	argv_addr = (char **) rsp;
-
-
 	rsp -= sizeof (void *);
-
-
 	*(void **) rsp = NULL;
-
-
 	if_->R.rdi = argc;
-
-
 	if_->R.rsi = (uint64_t) argv_addr;
-
-
 	if_->rsp = (uint64_t) rsp;	
 
-
 	success = true;
-
 
 done:
 	/* We arrive here whether the load is successful or not. */
