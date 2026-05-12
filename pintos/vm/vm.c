@@ -37,8 +37,6 @@ page_get_type (struct page *page) {
 static struct frame *vm_get_victim (void);
 static bool vm_do_claim_page (struct page *page);
 static struct frame *vm_evict_frame (void);
-static uint64_t page_hash(const struct hash_elem *e, void *aux UNUSED);
-static bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED);
 
 static uint64_t page_hash(const struct hash_elem *e, void *aux UNUSED) {
 	struct page *p = hash_entry(e, struct page, hash_elem);
