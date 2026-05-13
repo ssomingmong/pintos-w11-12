@@ -30,7 +30,7 @@ enum vm_type {
 #include "vm/anon.h"
 #include "vm/file.h"
 #ifdef EFILESYS
-#include "filesys/page_cach	e.h"
+#include "filesys/page_cache.h"
 #endif
 
 struct page_operations;
@@ -48,10 +48,7 @@ struct page {
 	struct frame *frame;   /* Back reference for frame */
 
 	/* Your implementation */
-<<<<<<< C+D
 	bool writable;
-=======
->>>>>>> dev
 	struct hash_elem hash_elem;
 
 	/* Per-type data are binded into the union.
