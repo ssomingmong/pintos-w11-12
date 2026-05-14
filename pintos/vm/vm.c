@@ -76,17 +76,12 @@ err:
 /* Find VA from spt and return page. On error, return NULL. */
 struct page *
 spt_find_page (struct supplemental_page_table *spt, void *va ) {
-	struct page *page = NULL;
-	/* TODO: Fill this function. */
-	struct hash_elem *e;
-	
-	page->va = va;
-	e = hash_find(&spt->pages, &page->hash_elem);
-
-	if (e == NULL) {
+	struct page page;
+	page.va = pg_round_down(va);
+	struct hash_elem* e = hash_find(&spt->pages,&page.hash_elem);
+	if (e == NULL){
 		return NULL;
 	}
-
 	return hash_entry(e, struct page, hash_elem);
 }
 
