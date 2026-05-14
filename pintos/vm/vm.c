@@ -87,11 +87,14 @@ err:
 
 /* Find VA from spt and return page. On error, return NULL. */
 struct page *
-spt_find_page (struct supplemental_page_table *spt, void *va ) {
-	struct page *page = NULL;
-	/* TODO: Fill this function. */
+spt_find_page (struct supplemental_page_table *spt, void *va) {
+	struct page page;
+	struct hash_elem *e;
 
-	return page;
+	page.va = pg_round_down (va);
+	e = hash_find (&spt->pages, &page.hash_elem);
+
+	return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
 }
 
 /* Insert PAGE into spt with validation. */
