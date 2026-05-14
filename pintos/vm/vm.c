@@ -79,18 +79,21 @@ struct page *
 spt_find_page (struct supplemental_page_table *spt, void *va ) {
 	struct page page;
 	page.va = pg_round_down(va);
-	struct hash_elem *e = hash_find(&spt->pages, &page.hash_elem);
-	if (e == NULL)
+	struct hash_elem* e = hash_find(&spt->pages,&page.hash_elem);
+	if (e == NULL){
 		return NULL;
-	return hash_entry(e, struct page, hash_elem);
+	}
+	return hash_entry(e, struct page, hash_elem);;
 }
 
 /* Insert PAGE into spt with validation. */
 bool
-spt_insert_page (struct supplemental_page_table *spt,
-		struct page *page) {
-	page->va = pg_round_down(page->va);
-	return hash_insert(&spt->pages, &page->hash_elem) == NULL;
+spt_insert_page (struct supplemental_page_table *spt UNUSED,
+		struct page *page UNUSED) {
+	int succ = false;
+	/* TODO: Fill this function. */
+
+	return succ;
 }
 
 void
