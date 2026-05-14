@@ -5,17 +5,16 @@
 #include "vm/inspect.h"
 #include "threads/vaddr.h"
 
-static uint64_t 
-page_hash(const struct hash_elem *e, void *aux UNUSED){
-	const struct page * t = hash_entry(e, struct page, hash_elem);
-	return hash_bytes(&t->va, sizeof(t->va));
-
+static uint64_t page_hash(const struct hash_elem *e, void *aux UNUSED) {
+	struct page *p = hash_entry(e, struct page, hash_elem);
+	return hash_bytes(&p->va, sizeof(p->va));
 }
-static bool 
-page_less(const struct hash_elem *a, const struct hash_elem* b, void* aux UNUSED){
-	const struct page * page_a = hash_entry(a, struct page, hash_elem);
-	const struct page * page_b = hash_entry(b, struct page, hash_elem);
-	return (uint64_t)page_a->va <(uint64_t)page_b->va;
+
+static bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED) {
+	struct page *pa = hash_entry(a, struct page, hash_elem);
+	struct page *pb = hash_entry(b, struct page, hash_elem);
+
+	return pa->va < pb->va;
 }
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
@@ -51,17 +50,6 @@ static struct frame *vm_get_victim (void);
 static bool vm_do_claim_page (struct page *page);
 static struct frame *vm_evict_frame (void);
 
-static uint64_t page_hash(const struct hash_elem *e, void *aux UNUSED) {
-	struct page *p = hash_entry(e, struct page, hash_elem);
-	return hash_bytes(&p->va, sizeof(p->va));
-}
-
-static bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED) {
-	struct page *pa = hash_entry(a, struct page, hash_elem);
-	struct page *pb = hash_entry(b, struct page, hash_elem);
-
-	return pa->va < pb->va;
-}
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
