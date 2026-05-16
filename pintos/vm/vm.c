@@ -57,15 +57,13 @@ bool
 vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		vm_initializer *init, void *aux) {
 
-	ASSERT (VM_TYPE(type) != VM_UNINIT)
+	ASSERT (VM_TYPE(type) != VM_UNINIT);
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
 	upage = pg_round_down(upage);
-	/* Check wheter the upage is already occupied or not. */
+
 	if (spt_find_page (spt, upage) == NULL) {
-		/* TODO: Create the page, fetch the initialier according to the VM type,
-		 * TODO: and then create "uninit" page struct by calling uninit_new. You
-		 * TODO: should modify the field after calling the uninit_new. */
+		
 		struct page *page = malloc(sizeof *page);
 		if (page == NULL)
 			goto err;
@@ -93,6 +91,9 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		vm_dealloc_page(page);
 	}
 err:
+	if (page != NULL)
+		free (page);
+
 	return false;
 }
 
@@ -169,14 +170,12 @@ static bool
 vm_handle_wp (struct page *page UNUSED) {
 }
 
-/* Return true on success */
 bool
-vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
-		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
-	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
+vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr,
+		bool user UNUSED, bool write, bool not_present) {
+	struct supplemental_page_table *spt = &thread_current ()->spt;
 	struct page *page = NULL;
-	/* TODO: Validate the fault */
-	/* TODO: Your code goes here */
+
 	void *upage;
 
 	if (addr == NULL || is_kernel_vaddr (addr))

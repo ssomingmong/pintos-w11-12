@@ -6,6 +6,10 @@
 #include "threads/thread.h"
 #include "intrinsic.h"
 
+#ifdef VM
+#include "vm/vm.h"
+#endif
+
 /* Number of page faults processed. */
 static long long page_fault_cnt;
 
@@ -157,4 +161,3 @@ page_fault (struct intr_frame *f) {
 			user ? "user" : "kernel");
 	kill (f);
 }
-
