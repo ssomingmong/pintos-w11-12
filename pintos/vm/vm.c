@@ -171,12 +171,27 @@ vm_handle_wp (struct page *page UNUSED) {
 
 /* Return true on success */
 bool
-vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
-		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
-	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
+vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr,
+		bool user UNUSED, bool write, bool not_present) {
+	struct supplemental_page_table *spt = &thread_current ()->spt;
 	struct page *page = NULL;
-	/* TODO: Validate the fault */
-	/* TODO: Your code goes here */
+
+	if (addr == NULL)
+		return false;
+
+	if (is_kernel_vaddr (addr))
+		return false;
+
+	if (!not_present)
+		return false;
+
+	page = spt_find_page (spt, addr);
+
+	if (page == NULL)
+		return false;
+
+	if (write && page->writable == false)
+		return false;
 
 	if (addr == NULL)
 			return false;
