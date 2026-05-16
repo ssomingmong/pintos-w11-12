@@ -60,14 +60,37 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 	ASSERT (VM_TYPE(type) != VM_UNINIT)
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
-
+	upage = pg_round_down(upage);
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
 		/* TODO: Create the page, fetch the initialier according to the VM type,
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
 		 * TODO: should modify the field after calling the uninit_new. */
+		struct page *page = malloc(sizeof *page);
+		if (page == NULL)
+			goto err;
 
-		/* TODO: Insert the page into the spt. */
+		bool (*initializer)(struct page *, enum vm_type, void *kva);
+
+		switch (VM_TYPE(type)) {
+			case VM_ANON:
+				initializer = anon_initializer;
+				break;
+			case VM_FILE:
+				initializer = file_backed_initializer;
+				break;
+			default:
+				free (page);
+				goto err;
+		}
+
+		uninit_new (page, upage, init, type, aux, initializer);
+		page->writable = writable;
+
+		if (spt_insert_page (spt, page))
+			return true;
+
+		vm_dealloc_page(page);
 	}
 err:
 	return false;
@@ -154,6 +177,32 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
+	void *upage;
+
+	if (addr == NULL || is_kernel_vaddr (addr))
+		return false;
+
+	if (!not_present) {
+		return false;
+	}
+
+	upage = pg_round_down(addr);
+	page = spt_find_page(spt, upage);
+
+	if (page == NULL) {
+		void *rsp = (void *) f->rsp;
+
+		if (addr >= rsp - 8 && addr < (void *) USER_STACK && (uint8_t *) USER_STACK - (uint8_t *) upage <= (1 << 20)) {
+			vm_stack_growth(addr);
+			page = spt_find_page(spt, upage);
+		}
+	}
+
+	if (page == NULL)
+		return false;
+
+	if (write && !page->writable)
+		return false;
 
 	return vm_do_claim_page (page);
 }
