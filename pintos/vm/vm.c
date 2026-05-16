@@ -57,42 +57,42 @@ bool
 vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		vm_initializer *init, void *aux) {
 
-	ASSERT (VM_TYPE(type) != VM_UNINIT)
+	ASSERT (VM_TYPE(type) != VM_UNINIT);
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
+	struct page *page = NULL;
+	bool (*initializer) (struct page *, enum vm_type, void *) = NULL;
 
-	upage = pg_round_down (upage);
+	if (spt_find_page (spt, upage) != NULL)
+		goto err;
 
-	/* Check wheter the upage is already occupied or not. */
-	if (spt_find_page (spt, upage) == NULL) {
-		struct page *page = malloc (sizeof *page);
+	page = malloc (sizeof (struct page));
+	if (page == NULL)
+		goto err;
 
-		if (page == NULL)
+	switch (VM_TYPE(type)) {
+		case VM_ANON:
+			initializer = anon_initializer;
+			break;
+		case VM_FILE:
+			initializer = file_backed_initializer;
+			break;
+		default:
 			goto err;
-
-		bool (*page_initializer)(struct page *, enum vm_type, void *);
-
-		switch (VM_TYPE (type)) {
-			case VM_ANON:
-				page_initializer = anon_initializer;
-				break;
-			case VM_FILE:
-				page_initializer = file_backed_initializer;
-				break;
-			default:
-				free (page);
-				goto err;
-		}
-
-		uninit_new (page, upage, init, type, aux, page_initializer);
-		page->writable = writable;
-
-		if (spt_insert_page (spt, page))
-			return true;
-
-		vm_dealloc_page (page);
 	}
+
+	uninit_new (page, upage, init, type, aux, initializer);
+	page->writable = writable;
+
+	if (!spt_insert_page (spt, page))
+		goto err;
+
+	return true;
+
 err:
+	if (page != NULL)
+		free (page);
+
 	return false;
 }
 
@@ -192,6 +192,22 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr,
 
 	if (write && page->writable == false)
 		return false;
+
+	if (addr == NULL)
+			return false;
+
+	if(is_kernel_vaddr(addr))
+			return false;
+	
+	if(!not_present)
+			return false;
+			
+	page = spt_find_page(spt, addr);
+	if(page == NULL)
+			return false;
+
+	if(write && !page->writable)
+			return false;
 
 	return vm_do_claim_page (page);
 }
