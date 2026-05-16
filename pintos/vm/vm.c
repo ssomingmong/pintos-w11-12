@@ -60,35 +60,36 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 	ASSERT (VM_TYPE(type) != VM_UNINIT);
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
-	struct page *page = NULL;
-	bool (*initializer) (struct page *, enum vm_type, void *) = NULL;
+	upage = pg_round_down(upage);
 
-	if (spt_find_page (spt, upage) != NULL)
-		goto err;
-
-	page = malloc (sizeof (struct page));
-	if (page == NULL)
-		goto err;
-
-	switch (VM_TYPE(type)) {
-		case VM_ANON:
-			initializer = anon_initializer;
-			break;
-		case VM_FILE:
-			initializer = file_backed_initializer;
-			break;
-		default:
+	if (spt_find_page (spt, upage) == NULL) {
+		
+		struct page *page = malloc(sizeof *page);
+		if (page == NULL)
 			goto err;
+
+		bool (*initializer)(struct page *, enum vm_type, void *kva);
+
+		switch (VM_TYPE(type)) {
+			case VM_ANON:
+				initializer = anon_initializer;
+				break;
+			case VM_FILE:
+				initializer = file_backed_initializer;
+				break;
+			default:
+				free (page);
+				goto err;
+		}
+
+		uninit_new (page, upage, init, type, aux, initializer);
+		page->writable = writable;
+
+		if (spt_insert_page (spt, page))
+			return true;
+
+		vm_dealloc_page(page);
 	}
-
-	uninit_new (page, upage, init, type, aux, initializer);
-	page->writable = writable;
-
-	if (!spt_insert_page (spt, page))
-		goto err;
-
-	return true;
-
 err:
 	if (page != NULL)
 		free (page);
@@ -169,45 +170,38 @@ static bool
 vm_handle_wp (struct page *page UNUSED) {
 }
 
-/* Return true on success */
 bool
 vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr,
 		bool user UNUSED, bool write, bool not_present) {
 	struct supplemental_page_table *spt = &thread_current ()->spt;
 	struct page *page = NULL;
 
-	if (addr == NULL)
+	void *upage;
+
+	if (addr == NULL || is_kernel_vaddr (addr))
 		return false;
 
-	if (is_kernel_vaddr (addr))
+	if (!not_present) {
 		return false;
+	}
 
-	if (!not_present)
-		return false;
+	upage = pg_round_down(addr);
+	page = spt_find_page(spt, upage);
 
-	page = spt_find_page (spt, addr);
+	if (page == NULL) {
+		void *rsp = (void *) f->rsp;
+
+		if (addr >= rsp - 8 && addr < (void *) USER_STACK && (uint8_t *) USER_STACK - (uint8_t *) upage <= (1 << 20)) {
+			vm_stack_growth(addr);
+			page = spt_find_page(spt, upage);
+		}
+	}
 
 	if (page == NULL)
 		return false;
 
-	if (write && page->writable == false)
+	if (write && !page->writable)
 		return false;
-
-	if (addr == NULL)
-			return false;
-
-	if(is_kernel_vaddr(addr))
-			return false;
-	
-	if(!not_present)
-			return false;
-			
-	page = spt_find_page(spt, addr);
-	if(page == NULL)
-			return false;
-
-	if(write && !page->writable)
-			return false;
 
 	return vm_do_claim_page (page);
 }
