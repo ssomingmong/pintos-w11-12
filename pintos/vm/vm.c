@@ -61,13 +61,36 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
 
+	upage = pg_round_down (upage);
+
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
-		/* TODO: Create the page, fetch the initialier according to the VM type,
-		 * TODO: and then create "uninit" page struct by calling uninit_new. You
-		 * TODO: should modify the field after calling the uninit_new. */
+		struct page *page = malloc (sizeof *page);
 
-		/* TODO: Insert the page into the spt. */
+		if (page == NULL)
+			goto err;
+
+		bool (*page_initializer)(struct page *, enum vm_type, void *);
+
+		switch (VM_TYPE (type)) {
+			case VM_ANON:
+				page_initializer = anon_initializer;
+				break;
+			case VM_FILE:
+				page_initializer = file_backed_initializer;
+				break;
+			default:
+				free (page);
+				goto err;
+		}
+
+		uninit_new (page, upage, init, type, aux, page_initializer);
+		page->writable = writable;
+
+		if (spt_insert_page (spt, page))
+			return true;
+
+		vm_dealloc_page (page);
 	}
 err:
 	return false;
@@ -148,12 +171,27 @@ vm_handle_wp (struct page *page UNUSED) {
 
 /* Return true on success */
 bool
-vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
-		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
-	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
+vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr,
+		bool user UNUSED, bool write, bool not_present) {
+	struct supplemental_page_table *spt = &thread_current ()->spt;
 	struct page *page = NULL;
-	/* TODO: Validate the fault */
-	/* TODO: Your code goes here */
+
+	if (addr == NULL)
+		return false;
+
+	if (is_kernel_vaddr (addr))
+		return false;
+
+	if (!not_present)
+		return false;
+
+	page = spt_find_page (spt, addr);
+
+	if (page == NULL)
+		return false;
+
+	if (write && page->writable == false)
+		return false;
 
 	return vm_do_claim_page (page);
 }
