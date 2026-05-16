@@ -144,7 +144,9 @@ static bool
 vm_handle_wp (struct page *page UNUSED) {
 }
 
-/* Return true on success */
+/* Try to resolve a recoverable page fault, such as lazy loading,
+ * stack growth, or write protection. Return true if the fault is handled,
+ * or false if the access is invalid and cannot be recovered. */
 bool
 vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
