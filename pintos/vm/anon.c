@@ -1,7 +1,9 @@
 /* anon.c: Implementation of page for non-disk image (a.k.a. anonymous page). */
 
+#include <string.h>
 #include "vm/vm.h"
 #include "devices/disk.h"
+#include "threads/vaddr.h"
 
 /* DO NOT MODIFY BELOW LINE */
 static struct disk *swap_disk;
@@ -26,17 +28,17 @@ vm_anon_init (void) {
 
 /* Initialize the file mapping */
 bool
-anon_initializer (struct page *page, enum vm_type type, void *kva) {
+anon_initializer (struct page *page, enum vm_type type UNUSED, void *kva UNUSED) {
 	/* Set up the handler */
 	page->operations = &anon_ops;
-
-	struct anon_page *anon_page = &page->anon;
+	return true;
 }
 
 /* Swap in the page by read contents from the swap disk. */
 static bool
-anon_swap_in (struct page *page, void *kva) {
-	struct anon_page *anon_page = &page->anon;
+anon_swap_in (struct page *page UNUSED, void *kva) {
+	memset (kva, 0, PGSIZE);
+	return true;
 }
 
 /* Swap out the page by writing contents to the swap disk. */
