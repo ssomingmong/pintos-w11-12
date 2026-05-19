@@ -4,6 +4,7 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include "threads/vaddr.h"
+#include "threads/mmu.h"
 
 static uint64_t page_hash(const struct hash_elem *e, void *aux UNUSED) {
 	struct page *p = hash_entry(e, struct page, hash_elem);
@@ -60,11 +61,12 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 	ASSERT (VM_TYPE(type) != VM_UNINIT);
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
+	struct page *page = NULL;
 	upage = pg_round_down(upage);
 
 	if (spt_find_page (spt, upage) == NULL) {
 		
-		struct page *page = malloc(sizeof *page);
+		page = malloc(sizeof *page);
 		if (page == NULL)
 			goto err;
 
@@ -114,13 +116,8 @@ spt_find_page (struct supplemental_page_table *spt, void *va ) {
 /* Insert PAGE into spt with validation. */
 bool
 spt_insert_page (struct supplemental_page_table *spt, struct page *page) {
-	
-	int succ = false;
-
-	if(hash_insert(&spt->pages, &page->hash_elem) == NULL)
-		succ = true;
-
-	return succ;
+	page->va = pg_round_down (page->va);
+	return hash_insert (&spt->pages, &page->hash_elem) == NULL;
 }
 
 void
@@ -155,7 +152,21 @@ vm_evict_frame (void) {
 static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = NULL;
+	void *kva;
 	/* TODO: Fill this function. */
+
+	kva = palloc_get_page (PAL_USER);
+	if (kva == NULL) {
+		frame = vm_evict_frame ();
+	} else {
+		frame = malloc (sizeof *frame);
+		if (frame == NULL) {
+			palloc_free_page (kva);
+			return NULL;
+		}
+		frame->kva = kva;
+		frame->page = NULL;
+	}
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
@@ -218,25 +229,41 @@ vm_dealloc_page (struct page *page) {
 
 /* Claim the page that allocate on VA. */
 bool
-vm_claim_page (void *va UNUSED) {
+vm_claim_page (void *va) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
+	struct supplemental_page_table *spt = &thread_current ()->spt;
 
-	return vm_do_claim_page (page);
+	page = spt_find_page (spt, pg_round_down (va));
+	if (page != NULL)
+		return vm_do_claim_page (page);
+	return false;
 }
 
 /* Claim the PAGE and set up the mmu. */
 static bool
 vm_do_claim_page (struct page *page) {
 	struct frame *frame = vm_get_frame ();
+	if (frame == NULL)
+		return false;
 
 	/* Set links */
 	frame->page = page;
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	if (pml4_set_page (thread_current ()->pml4, page->va, frame->kva,
+				page->writable)) {
+		if (swap_in (page, frame->kva))
+			return true;
+		pml4_clear_page (thread_current ()->pml4, page->va);
+	}
 
-	return swap_in (page, frame->kva);
+	palloc_free_page (frame->kva);
+	frame->page = NULL;
+	page->frame = NULL;
+	free (frame);
+	return false;
 }
 
 /* Initialize new supplemental page table */
