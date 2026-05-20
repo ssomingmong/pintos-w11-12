@@ -673,6 +673,12 @@ install_page (void *upage, void *kpage, bool writable) {
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
+struct load_segment_aux {
+	struct file *file;
+	off_t ofs;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
+};
 
 struct lazy_load_arg {
 	struct file *file;
@@ -683,22 +689,28 @@ struct lazy_load_arg {
 
 static bool
 lazy_load_segment (struct page *page, void *aux) {
-	struct lazy_load_segment_aux *segment_aux = aux;
-	uint8_t *kva = page->frame->kva;
+	struct load_segment_aux *load_aux = aux;
+	void *kva = page->frame->kva;
 	bool success = false;
 
-	file_seek (segment_aux->file, segment_aux->ofs);
-	if (file_read (segment_aux->file, kva, segment_aux->page_read_bytes)
-			!= (int) segment_aux->page_read_bytes)
+	if (load_aux == NULL)
+		return false;
+	if (load_aux->file == NULL) {
+		free (load_aux);
+		return false;
+	}
+
+	if (file_read_at (load_aux->file, kva, load_aux->page_read_bytes,
+				load_aux->ofs) != (off_t) load_aux->page_read_bytes)
 		goto done;
 
-	memset (kva + segment_aux->page_read_bytes, 0,
-			segment_aux->page_zero_bytes);
+	memset ((uint8_t *) kva + load_aux->page_read_bytes, 0,
+			load_aux->page_zero_bytes);
 	success = true;
 
 done:
-	file_close (segment_aux->file);
-	free (segment_aux);
+	file_close (load_aux->file);
+	free (load_aux);
 	return success;
 }
 
@@ -754,6 +766,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
+		ofs += page_read_bytes;
 		upage += PGSIZE;
 		ofs += page_read_bytes;
 	}
