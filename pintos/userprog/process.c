@@ -9,6 +9,7 @@
 #include "userprog/gdt.h"
 #include "userprog/syscall.h"
 #include "userprog/tss.h"
+#include "devices/timer.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -21,10 +22,19 @@
 #include "threads/thread.h"
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #include "intrinsic.h"
 #define MAX_ARGS 64
 #ifdef VM
 #include "vm/vm.h"
+#include "threads/malloc.h"
+
+struct lazy_load_segment_aux {
+	struct file *file;
+	off_t ofs;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
+};
 #endif
 
 static void process_cleanup (void);
@@ -665,23 +675,45 @@ install_page (void *upage, void *kpage, bool writable) {
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
+struct load_segment_aux {
+	struct file *file;
+	off_t ofs;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
+};
+
+struct lazy_load_arg {
+	struct file *file;
+	off_t ofs;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
+};
 
 static bool
 lazy_load_segment (struct page *page, void *aux) {
-	struct lazy_load_info *info = aux;
+	struct load_segment_aux *load_aux = aux;
 	void *kva = page->frame->kva;
+	bool success = false;
 
-	if (file_read_at (info->file, kva, info->read_bytes, info->ofs) != (int) info->read_bytes) {
-		file_close(info->file);
-		free(info);
+	if (load_aux == NULL)
+		return false;
+	if (load_aux->file == NULL) {
+		free (load_aux);
 		return false;
 	}
 
-	memset((uint8_t *) kva + info->read_bytes, 0, info->zero_bytes);
+	if (file_read_at (load_aux->file, kva, load_aux->page_read_bytes,
+				load_aux->ofs) != (off_t) load_aux->page_read_bytes)
+		goto done;
 
-	file_close(info->file);
-	free(info);
-	return true;
+	memset ((uint8_t *) kva + load_aux->page_read_bytes, 0,
+			load_aux->page_zero_bytes);
+	success = true;
+
+done:
+	file_close (load_aux->file);
+	free (load_aux);
+	return success;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -712,20 +744,19 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		struct lazy_load_info *aux = malloc (sizeof *aux);
+		struct lazy_load_segment_aux *aux = malloc (sizeof *aux);
 		if (aux == NULL)
 			return false;
 
-		aux->file = file_reopen(file);
+		aux->file = file_reopen (file);
 		if (aux->file == NULL) {
 			free (aux);
 			return false;
 		}
 
 		aux->ofs = ofs;
-		aux->read_bytes = page_read_bytes;
-		aux->zero_bytes = page_zero_bytes;
+		aux->page_read_bytes = page_read_bytes;
+		aux->page_zero_bytes = page_zero_bytes;
 
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 					writable, lazy_load_segment, aux)) {
@@ -737,6 +768,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
+		ofs += page_read_bytes;
 		upage += PGSIZE;
 		ofs += page_read_bytes;
 	}
