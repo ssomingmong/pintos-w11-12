@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "userprog/syscall.h"
 #include "userprog/tss.h"
+#include "devices/timer.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -23,6 +24,14 @@
 #define MAX_ARGS 64
 #ifdef VM
 #include "vm/vm.h"
+#include "threads/malloc.h"
+
+struct lazy_load_segment_aux {
+	struct file *file;
+	off_t ofs;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
+};
 #endif
 
 static void process_cleanup (void);
@@ -666,9 +675,23 @@ install_page (void *upage, void *kpage, bool writable) {
 
 static bool
 lazy_load_segment (struct page *page, void *aux) {
-	/* TODO: Load the segment from the file */
-	/* TODO: This called when the first page fault occurs on address VA. */
-	/* TODO: VA is available when calling this function. */
+	struct lazy_load_segment_aux *segment_aux = aux;
+	uint8_t *kva = page->frame->kva;
+	bool success = false;
+
+	file_seek (segment_aux->file, segment_aux->ofs);
+	if (file_read (segment_aux->file, kva, segment_aux->page_read_bytes)
+			!= (int) segment_aux->page_read_bytes)
+		goto done;
+
+	memset (kva + segment_aux->page_read_bytes, 0,
+			segment_aux->page_zero_bytes);
+	success = true;
+
+done:
+	file_close (segment_aux->file);
+	free (segment_aux);
+	return success;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -699,16 +722,32 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
-		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
-					writable, lazy_load_segment, aux))
+		struct lazy_load_segment_aux *aux = malloc (sizeof *aux);
+		if (aux == NULL)
 			return false;
+
+		aux->file = file_reopen (file);
+		if (aux->file == NULL) {
+			free (aux);
+			return false;
+		}
+
+		aux->ofs = ofs;
+		aux->page_read_bytes = page_read_bytes;
+		aux->page_zero_bytes = page_zero_bytes;
+
+		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
+					writable, lazy_load_segment, aux)) {
+			file_close (aux->file);
+			free (aux);
+			return false;
+		}
 
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
+		ofs += page_read_bytes;
 	}
 	return true;
 }
