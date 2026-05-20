@@ -19,6 +19,7 @@
 #include "threads/thread.h"
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #include "intrinsic.h"
 #define MAX_ARGS 64
 #ifdef VM
@@ -664,11 +665,31 @@ install_page (void *upage, void *kpage, bool writable) {
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
 
+struct lazy_load_arg {
+	struct file *file;
+	off_t ofs;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
+};
+
 static bool
 lazy_load_segment (struct page *page, void *aux) {
-	/* TODO: Load the segment from the file */
-	/* TODO: This called when the first page fault occurs on address VA. */
-	/* TODO: VA is available when calling this function. */
+	struct lazy_load_arg *args = aux;
+	void *kva = page->frame->kva;
+	bool success = false;
+
+	file_seek (args->file, args->ofs);
+
+	off_t bytes_read = file_read (args->file, kva, args->page_read_bytes);
+	if (bytes_read == (off_t) args->page_read_bytes) {
+		memset ((uint8_t *) kva + args->page_read_bytes, 0,
+				args->page_zero_bytes);
+		success = true;
+	}
+
+	file_close (args->file);
+	free (args);
+	return success;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -699,16 +720,32 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
-		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
-					writable, lazy_load_segment, aux))
+		struct lazy_load_arg *aux = malloc (sizeof *aux);
+		if (aux == NULL)
 			return false;
+
+		aux->file = file_reopen (file);
+		aux->ofs = ofs;
+		aux->page_read_bytes = page_read_bytes;
+		aux->page_zero_bytes = page_zero_bytes;
+
+		if (aux->file == NULL) {
+			free (aux);
+			return false;
+		}
+
+		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
+					writable, lazy_load_segment, aux)) {
+			file_close (aux->file);
+			free (aux);
+			return false;
+		}
 
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
+		ofs += PGSIZE;
 	}
 	return true;
 }
