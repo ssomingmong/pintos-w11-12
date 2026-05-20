@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "userprog/syscall.h"
 #include "userprog/tss.h"
+#include "devices/timer.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -24,6 +25,14 @@
 #define MAX_ARGS 64
 #ifdef VM
 #include "vm/vm.h"
+#include "threads/malloc.h"
+
+struct lazy_load_segment_aux {
+	struct file *file;
+	off_t ofs;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
+};
 #endif
 
 static void process_cleanup (void);
@@ -674,21 +683,22 @@ struct lazy_load_arg {
 
 static bool
 lazy_load_segment (struct page *page, void *aux) {
-	struct lazy_load_arg *args = aux;
-	void *kva = page->frame->kva;
+	struct lazy_load_segment_aux *segment_aux = aux;
+	uint8_t *kva = page->frame->kva;
 	bool success = false;
 
-	file_seek (args->file, args->ofs);
+	file_seek (segment_aux->file, segment_aux->ofs);
+	if (file_read (segment_aux->file, kva, segment_aux->page_read_bytes)
+			!= (int) segment_aux->page_read_bytes)
+		goto done;
 
-	off_t bytes_read = file_read (args->file, kva, args->page_read_bytes);
-	if (bytes_read == (off_t) args->page_read_bytes) {
-		memset ((uint8_t *) kva + args->page_read_bytes, 0,
-				args->page_zero_bytes);
-		success = true;
-	}
+	memset (kva + segment_aux->page_read_bytes, 0,
+			segment_aux->page_zero_bytes);
+	success = true;
 
-	file_close (args->file);
-	free (args);
+done:
+	file_close (segment_aux->file);
+	free (segment_aux);
 	return success;
 }
 
@@ -720,19 +730,19 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-		struct lazy_load_arg *aux = malloc (sizeof *aux);
+		struct lazy_load_segment_aux *aux = malloc (sizeof *aux);
 		if (aux == NULL)
 			return false;
 
 		aux->file = file_reopen (file);
-		aux->ofs = ofs;
-		aux->page_read_bytes = page_read_bytes;
-		aux->page_zero_bytes = page_zero_bytes;
-
 		if (aux->file == NULL) {
 			free (aux);
 			return false;
 		}
+
+		aux->ofs = ofs;
+		aux->page_read_bytes = page_read_bytes;
+		aux->page_zero_bytes = page_zero_bytes;
 
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 					writable, lazy_load_segment, aux)) {
@@ -745,7 +755,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
-		ofs += PGSIZE;
+		ofs += page_read_bytes;
 	}
 	return true;
 }
