@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "userprog/syscall.h"
 #include "userprog/tss.h"
+#include "devices/timer.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -19,10 +20,19 @@
 #include "threads/thread.h"
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #include "intrinsic.h"
 #define MAX_ARGS 64
 #ifdef VM
 #include "vm/vm.h"
+#include "threads/malloc.h"
+
+struct lazy_load_segment_aux {
+	struct file *file;
+	off_t ofs;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
+};
 #endif
 
 static void process_cleanup (void);
@@ -670,6 +680,13 @@ struct load_segment_aux {
 	size_t page_zero_bytes;
 };
 
+struct lazy_load_arg {
+	struct file *file;
+	off_t ofs;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
+};
+
 static bool
 lazy_load_segment (struct page *page, void *aux) {
 	struct load_segment_aux *load_aux = aux;
@@ -725,15 +742,13 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-		struct load_segment_aux *aux = malloc(sizeof *aux);
-
-		if(aux == NULL) {
+		struct lazy_load_segment_aux *aux = malloc (sizeof *aux);
+		if (aux == NULL)
 			return false;
-		}
 
-		aux->file = file_reopen(file);
-		if(aux->file == NULL) {
-			free(aux);
+		aux->file = file_reopen (file);
+		if (aux->file == NULL) {
+			free (aux);
 			return false;
 		}
 
@@ -743,8 +758,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 					writable, lazy_load_segment, aux)) {
-			file_close(aux->file);
-			free(aux);
+			file_close (aux->file);
+			free (aux);
 			return false;
 		}
 
@@ -753,6 +768,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		zero_bytes -= page_zero_bytes;
 		ofs += page_read_bytes;
 		upage += PGSIZE;
+		ofs += page_read_bytes;
 	}
 	return true;
 }
